@@ -47,6 +47,7 @@ enum Commands {
     },
 
     /// List all managed worktrees
+    #[command(visible_alias = "ls")]
     List,
 
     /// Change to a worktree directory
