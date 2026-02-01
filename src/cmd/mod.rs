@@ -1,6 +1,7 @@
 pub mod cd;
 pub mod checkout;
 pub mod exit;
+pub mod init;
 pub mod list;
 pub mod new;
 pub mod pr;

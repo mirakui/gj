@@ -10,8 +10,8 @@ pub fn run(pr_number: u32, no_cd: bool) -> Result<()> {
     // Get the git repository root
     let git_root = git::get_repo_root().context("Must be run inside a git repository")?;
 
-    // Load configuration
-    let config = Config::load()?;
+    // Load configuration (requires config file to exist)
+    let config = Config::load_required()?;
 
     // Find the repository configuration (optional - works without registration)
     let (repo_name, repo_config) = match config.find_repo(&git_root) {

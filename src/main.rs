@@ -69,6 +69,13 @@ enum Commands {
         /// Shell type (zsh, bash)
         shell: String,
     },
+
+    /// Initialize gj configuration file
+    Init {
+        /// Overwrite existing configuration file
+        #[arg(long, short)]
+        force: bool,
+    },
 }
 
 fn main() -> Result<()> {
@@ -82,5 +89,6 @@ fn main() -> Result<()> {
         Commands::Cd { target } => cmd::cd::run(target),
         Commands::Exit { force } => cmd::exit::run(force),
         Commands::ShellInit { shell } => cmd::shell_init::run(&shell),
+        Commands::Init { force } => cmd::init::run(force),
     }
 }

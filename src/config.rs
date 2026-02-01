@@ -80,10 +80,30 @@ impl Config {
         Ok(config)
     }
 
+    /// Load configuration, returning an error if the config file does not exist
+    pub fn load_required() -> Result<Self> {
+        let config_path = Self::config_path()?;
+
+        if !config_path.exists() {
+            anyhow::bail!(
+                "Configuration file not found at {}\n\n\
+                Run `gj init` to create a configuration file.",
+                config_path.display()
+            );
+        }
+
+        Self::load()
+    }
+
+    /// Get the configuration directory path (~/.gj)
+    pub fn config_dir() -> Result<PathBuf> {
+        let home_dir = dirs::home_dir().context("Could not determine home directory")?;
+        Ok(home_dir.join(".gj"))
+    }
+
     /// Get the configuration file path (~/.gj/config.toml)
     pub fn config_path() -> Result<PathBuf> {
-        let home_dir = dirs::home_dir().context("Could not determine home directory")?;
-        Ok(home_dir.join(".gj").join("config.toml"))
+        Ok(Self::config_dir()?.join("config.toml"))
     }
 
     /// Find repository configuration by matching the git root path
@@ -144,6 +164,14 @@ mod tests {
         assert!(config.repos.is_empty());
         assert!(config.default.base_dir.is_none());
         assert!(config.default.prefix.is_none());
+    }
+
+    #[test]
+    fn test_config_dir_location() {
+        let dir = Config::config_dir().unwrap();
+        let home = dirs::home_dir().unwrap();
+        let expected = home.join(".gj");
+        assert_eq!(dir, expected);
     }
 
     #[test]
