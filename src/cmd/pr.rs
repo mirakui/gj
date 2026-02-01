@@ -32,7 +32,7 @@ pub fn run(pr_number: u32, no_cd: bool) -> Result<()> {
 
     // Generate worktree path: {base_dir}/{repo_name}/pr-{number}
     let base_dir = config.get_base_dir(repo_config);
-    let worktree_name = format!("pr-{}", pr_number);
+    let worktree_name = pr_worktree_name(pr_number);
     let worktree_path = base_dir.join(&repo_name).join(&worktree_name);
 
     // Check if worktree path already exists
@@ -69,4 +69,38 @@ pub fn run(pr_number: u32, no_cd: bool) -> Result<()> {
     println!("{}", worktree_path.display());
 
     Ok(())
+}
+
+/// Generate worktree name for a PR
+fn pr_worktree_name(pr_number: u32) -> String {
+    format!("pr-{}", pr_number)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_pr_worktree_name_single_digit() {
+        assert_eq!(pr_worktree_name(1), "pr-1");
+        assert_eq!(pr_worktree_name(9), "pr-9");
+    }
+
+    #[test]
+    fn test_pr_worktree_name_double_digit() {
+        assert_eq!(pr_worktree_name(42), "pr-42");
+        assert_eq!(pr_worktree_name(99), "pr-99");
+    }
+
+    #[test]
+    fn test_pr_worktree_name_large_number() {
+        assert_eq!(pr_worktree_name(12345), "pr-12345");
+        assert_eq!(pr_worktree_name(999999), "pr-999999");
+    }
+
+    #[test]
+    fn test_pr_worktree_name_zero() {
+        // Edge case: PR #0 (unlikely but valid input)
+        assert_eq!(pr_worktree_name(0), "pr-0");
+    }
 }

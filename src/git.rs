@@ -223,10 +223,329 @@ pub fn current_branch() -> Result<Option<String>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
+    use std::sync::Mutex;
+    use tempfile::TempDir;
+
+    // Mutex to ensure tests that change cwd run serially
+    static CWD_MUTEX: Mutex<()> = Mutex::new(());
+
+    /// Helper to create a temporary git repository
+    fn create_temp_git_repo() -> TempDir {
+        let temp_dir = TempDir::new().expect("Failed to create temp dir");
+        let repo_path = temp_dir.path();
+
+        // Initialize git repo
+        let output = Command::new("git")
+            .args(["init"])
+            .current_dir(repo_path)
+            .output()
+            .expect("Failed to init git repo");
+        assert!(
+            output.status.success(),
+            "git init failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+
+        // Configure git user for commits
+        let output = Command::new("git")
+            .args(["config", "user.email", "test@test.com"])
+            .current_dir(repo_path)
+            .output()
+            .expect("Failed to configure git email");
+        assert!(output.status.success(), "git config email failed");
+
+        let output = Command::new("git")
+            .args(["config", "user.name", "Test User"])
+            .current_dir(repo_path)
+            .output()
+            .expect("Failed to configure git name");
+        assert!(output.status.success(), "git config name failed");
+
+        // Disable GPG signing for test commits
+        let output = Command::new("git")
+            .args(["config", "commit.gpgSign", "false"])
+            .current_dir(repo_path)
+            .output()
+            .expect("Failed to disable GPG signing");
+        assert!(output.status.success(), "git config gpgSign failed");
+
+        // Create initial commit
+        fs::write(repo_path.join("README.md"), "# Test").expect("Failed to create file");
+
+        let output = Command::new("git")
+            .args(["add", "."])
+            .current_dir(repo_path)
+            .output()
+            .expect("Failed to stage files");
+        assert!(
+            output.status.success(),
+            "git add failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+
+        let output = Command::new("git")
+            .args(["commit", "-m", "Initial commit"])
+            .current_dir(repo_path)
+            .output()
+            .expect("Failed to create initial commit");
+        assert!(
+            output.status.success(),
+            "git commit failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+
+        temp_dir
+    }
+
+    /// Helper to run git status in a specific directory
+    fn has_uncommitted_changes_in(repo_path: &Path) -> Result<bool> {
+        let output = Command::new("git")
+            .args(["status", "--porcelain"])
+            .current_dir(repo_path)
+            .output()
+            .context("Failed to execute git status")?;
+
+        if !output.status.success() {
+            bail!("Failed to check git status");
+        }
+
+        Ok(!output.stdout.is_empty())
+    }
+
+    /// Helper to get current branch in a specific directory
+    fn current_branch_in(repo_path: &Path) -> Result<Option<String>> {
+        let output = Command::new("git")
+            .args(["rev-parse", "--abbrev-ref", "HEAD"])
+            .current_dir(repo_path)
+            .output()
+            .context("Failed to get current branch")?;
+
+        if !output.status.success() {
+            return Ok(None);
+        }
+
+        let branch = String::from_utf8(output.stdout)
+            .context("Invalid UTF-8 in git output")?
+            .trim()
+            .to_string();
+
+        if branch == "HEAD" {
+            return Ok(None);
+        }
+
+        Ok(Some(branch))
+    }
+
+    /// Helper to get repo root in a specific directory
+    fn get_repo_root_in(dir: &Path) -> Result<PathBuf> {
+        let output = Command::new("git")
+            .args(["rev-parse", "--show-toplevel"])
+            .current_dir(dir)
+            .output()
+            .context("Failed to execute git command")?;
+
+        if !output.status.success() {
+            bail!("Not in a git repository");
+        }
+
+        let path = String::from_utf8(output.stdout)
+            .context("Invalid UTF-8 in git output")?
+            .trim()
+            .to_string();
+
+        Ok(PathBuf::from(path))
+    }
 
     #[test]
     fn test_is_gh_available() {
         // This just checks that the function doesn't panic
         let _ = is_gh_available();
+    }
+
+    #[test]
+    fn test_get_repo_root_in_git_repo() {
+        let temp_dir = create_temp_git_repo();
+        let repo_path = temp_dir.path();
+
+        let root = get_repo_root_in(repo_path).expect("Should find repo root");
+
+        // The paths should be equivalent (canonicalize to handle symlinks)
+        assert_eq!(
+            root.canonicalize().unwrap(),
+            repo_path.canonicalize().unwrap()
+        );
+    }
+
+    #[test]
+    fn test_get_repo_root_in_subdirectory() {
+        let temp_dir = create_temp_git_repo();
+        let repo_path = temp_dir.path();
+
+        // Create a subdirectory
+        let subdir = repo_path.join("src");
+        fs::create_dir(&subdir).expect("Failed to create subdir");
+
+        let root = get_repo_root_in(&subdir).expect("Should find repo root from subdir");
+
+        assert_eq!(
+            root.canonicalize().unwrap(),
+            repo_path.canonicalize().unwrap()
+        );
+    }
+
+    #[test]
+    fn test_has_uncommitted_changes_clean_repo() {
+        let temp_dir = create_temp_git_repo();
+        let repo_path = temp_dir.path();
+
+        let has_changes = has_uncommitted_changes_in(repo_path).expect("Should check status");
+        assert!(!has_changes, "Clean repo should have no uncommitted changes");
+    }
+
+    #[test]
+    fn test_has_uncommitted_changes_with_unstaged() {
+        let temp_dir = create_temp_git_repo();
+        let repo_path = temp_dir.path();
+
+        // Modify a file
+        fs::write(repo_path.join("README.md"), "# Modified").expect("Failed to modify file");
+
+        let has_changes = has_uncommitted_changes_in(repo_path).expect("Should check status");
+        assert!(has_changes, "Repo with unstaged changes should be dirty");
+    }
+
+    #[test]
+    fn test_has_uncommitted_changes_with_staged() {
+        let temp_dir = create_temp_git_repo();
+        let repo_path = temp_dir.path();
+
+        // Create and stage a new file
+        fs::write(repo_path.join("new.txt"), "new content").expect("Failed to create file");
+        Command::new("git")
+            .args(["add", "new.txt"])
+            .current_dir(repo_path)
+            .output()
+            .expect("Failed to stage file");
+
+        let has_changes = has_uncommitted_changes_in(repo_path).expect("Should check status");
+        assert!(has_changes, "Repo with staged changes should be dirty");
+    }
+
+    #[test]
+    fn test_current_branch_on_main() {
+        let temp_dir = create_temp_git_repo();
+        let repo_path = temp_dir.path();
+
+        let branch = current_branch_in(repo_path).expect("Should get branch");
+        // Default branch could be 'main' or 'master' depending on git config
+        assert!(
+            branch == Some("main".to_string()) || branch == Some("master".to_string()),
+            "Should be on main or master branch, got: {:?}",
+            branch
+        );
+    }
+
+    #[test]
+    fn test_current_branch_on_feature_branch() {
+        let temp_dir = create_temp_git_repo();
+        let repo_path = temp_dir.path();
+
+        // Create and checkout a new branch
+        let output = Command::new("git")
+            .args(["checkout", "-b", "feature/test"])
+            .current_dir(repo_path)
+            .output()
+            .expect("Failed to create branch");
+        assert!(
+            output.status.success(),
+            "Failed to create branch: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+
+        let branch = current_branch_in(repo_path).expect("Should get branch");
+        assert_eq!(branch, Some("feature/test".to_string()));
+    }
+
+    #[test]
+    fn test_current_branch_detached_head() {
+        let temp_dir = create_temp_git_repo();
+        let repo_path = temp_dir.path();
+
+        // Detach HEAD by checking out a commit
+        Command::new("git")
+            .args(["checkout", "--detach", "HEAD"])
+            .current_dir(repo_path)
+            .output()
+            .expect("Failed to detach HEAD");
+
+        let branch = current_branch_in(repo_path).expect("Should get branch");
+        assert_eq!(branch, None, "Detached HEAD should return None");
+    }
+
+    #[test]
+    fn test_worktree_add_and_remove() {
+        let _guard = CWD_MUTEX.lock().unwrap();
+        let temp_dir = create_temp_git_repo();
+        let repo_path = temp_dir.path();
+        std::env::set_current_dir(repo_path).expect("Failed to change directory");
+
+        // Create a worktree
+        let worktree_path = temp_dir.path().parent().unwrap().join("test-worktree");
+        worktree_add_new_branch(&worktree_path, "test-branch").expect("Should create worktree");
+
+        // Verify worktree exists
+        assert!(worktree_path.exists(), "Worktree directory should exist");
+        assert!(
+            worktree_path.join(".git").exists(),
+            "Worktree should have .git"
+        );
+
+        // Remove the worktree
+        worktree_remove(&worktree_path, false, repo_path).expect("Should remove worktree");
+        assert!(
+            !worktree_path.exists(),
+            "Worktree directory should be removed"
+        );
+    }
+
+    #[test]
+    fn test_branch_delete() {
+        let temp_dir = create_temp_git_repo();
+        let repo_path = temp_dir.path();
+
+        // Create a branch
+        let output = Command::new("git")
+            .args(["branch", "to-delete"])
+            .current_dir(repo_path)
+            .output()
+            .expect("Failed to create branch");
+        assert!(
+            output.status.success(),
+            "Failed to create branch: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+
+        // Verify branch exists
+        let output = Command::new("git")
+            .args(["branch", "--list", "to-delete"])
+            .current_dir(repo_path)
+            .output()
+            .expect("Failed to list branches");
+        assert!(
+            !output.stdout.is_empty(),
+            "Branch should exist before delete"
+        );
+
+        // Delete the branch
+        branch_delete("to-delete", false, repo_path).expect("Should delete branch");
+
+        // Verify branch is gone
+        let output = Command::new("git")
+            .args(["branch", "--list", "to-delete"])
+            .current_dir(repo_path)
+            .output()
+            .expect("Failed to list branches");
+        assert!(output.stdout.is_empty(), "Branch should be deleted");
     }
 }

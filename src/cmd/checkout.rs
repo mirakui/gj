@@ -28,17 +28,14 @@ pub fn run(remote_branch: String, no_cd: bool) -> Result<()> {
     };
 
     // Parse the branch name (remove origin/ prefix if present)
-    let branch_name = remote_branch
-        .strip_prefix("origin/")
-        .unwrap_or(&remote_branch);
+    let branch_name = parse_branch_name(&remote_branch);
 
     // Fetch the branch from origin
     eprintln!("Fetching branch '{}'...", branch_name);
     git::fetch_branch(branch_name)?;
 
     // Generate worktree path: {base_dir}/{repo_name}/{branch-name}
-    // Replace slashes in branch name with hyphens for path
-    let safe_branch_name = branch_name.replace('/', "-");
+    let safe_branch_name = sanitize_branch_for_path(branch_name);
     let base_dir = config.get_base_dir(repo_config);
     let worktree_path = base_dir.join(&repo_name).join(&safe_branch_name);
 
@@ -77,4 +74,69 @@ pub fn run(remote_branch: String, no_cd: bool) -> Result<()> {
     println!("{}", worktree_path.display());
 
     Ok(())
+}
+
+/// Parse branch name, stripping `origin/` prefix if present
+fn parse_branch_name(remote_branch: &str) -> &str {
+    remote_branch.strip_prefix("origin/").unwrap_or(remote_branch)
+}
+
+/// Sanitize branch name for use in filesystem path
+/// Replaces `/` with `-` to avoid nested directories
+fn sanitize_branch_for_path(branch: &str) -> String {
+    branch.replace('/', "-")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_branch_name_with_origin_prefix() {
+        assert_eq!(parse_branch_name("origin/main"), "main");
+        assert_eq!(parse_branch_name("origin/feature/foo"), "feature/foo");
+    }
+
+    #[test]
+    fn test_parse_branch_name_without_prefix() {
+        assert_eq!(parse_branch_name("main"), "main");
+        assert_eq!(parse_branch_name("feature/bar"), "feature/bar");
+    }
+
+    #[test]
+    fn test_parse_branch_name_empty() {
+        assert_eq!(parse_branch_name(""), "");
+    }
+
+    #[test]
+    fn test_parse_branch_name_only_origin_slash() {
+        // "origin/" should become empty string
+        assert_eq!(parse_branch_name("origin/"), "");
+    }
+
+    #[test]
+    fn test_sanitize_branch_for_path_with_slashes() {
+        assert_eq!(sanitize_branch_for_path("feature/foo"), "feature-foo");
+        assert_eq!(
+            sanitize_branch_for_path("feature/nested/deep"),
+            "feature-nested-deep"
+        );
+    }
+
+    #[test]
+    fn test_sanitize_branch_for_path_no_slashes() {
+        assert_eq!(sanitize_branch_for_path("main"), "main");
+        assert_eq!(sanitize_branch_for_path("develop"), "develop");
+    }
+
+    #[test]
+    fn test_sanitize_branch_for_path_empty() {
+        assert_eq!(sanitize_branch_for_path(""), "");
+    }
+
+    #[test]
+    fn test_sanitize_branch_for_path_only_slashes() {
+        assert_eq!(sanitize_branch_for_path("/"), "-");
+        assert_eq!(sanitize_branch_for_path("//"), "--");
+    }
 }
