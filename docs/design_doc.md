@@ -49,8 +49,8 @@ $ gj exit
          │                            │
          │                            ▼
          │                   ┌─────────────────────┐
-         │                   │  ~/.config/gj/      │
-         │                   │  ├── gj.toml        │
+         │                   │  ~/.gj/             │
+         │                   │  ├── config.toml    │
          │                   │  └── state/         │
          │                   │      └── <hash>.json│
          │                   └─────────────────────┘
@@ -175,7 +175,7 @@ Currently supported: `zsh`
 
 ### File Location
 
-`~/.config/gj/gj.toml`
+`~/.gj/config.toml`
 
 ### Schema
 
@@ -274,7 +274,7 @@ Repositories are identified by matching the current git repository root (via `gi
 
 ### File Location
 
-`~/.config/gj/state/<worktree-path-hash>.json`
+`~/.gj/state/<worktree-path-hash>.json`
 
 The hash is computed from the worktree's absolute path.
 
@@ -352,7 +352,7 @@ function gj() {
 | Scenario | Behavior |
 |----------|----------|
 | Not in a git repository | Error with message |
-| Repository not registered | Error: "Repository not registered. Add it to ~/.config/gj/gj.toml" |
+| Repository not registered | Error: "Repository not registered. Add it to ~/.gj/config.toml" |
 | `gh` CLI not installed | Error when using `gj pr` |
 | PR not found | Error with message from `gh` |
 | Uncommitted changes on `gj exit` | Error unless `--force` is specified |

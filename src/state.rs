@@ -86,10 +86,10 @@ impl WorktreeState {
     }
 }
 
-/// Get the state directory path
+/// Get the state directory path (~/.gj/state/)
 pub fn state_dir() -> Result<PathBuf> {
-    let config_dir = dirs::config_dir().context("Could not determine config directory")?;
-    Ok(config_dir.join("gj").join("state"))
+    let home_dir = dirs::home_dir().context("Could not determine home directory")?;
+    Ok(home_dir.join(".gj").join("state"))
 }
 
 /// Compute a hash for a path to use as state file name
@@ -160,6 +160,14 @@ mod tests {
         assert_eq!(hash1, hash2);
         assert_ne!(hash1, hash3);
         assert_eq!(hash1.len(), 16); // 8 bytes = 16 hex chars
+    }
+
+    #[test]
+    fn test_state_dir_location() {
+        let dir = state_dir().unwrap();
+        let home = dirs::home_dir().unwrap();
+        let expected = home.join(".gj").join("state");
+        assert_eq!(dir, expected);
     }
 
     #[test]
