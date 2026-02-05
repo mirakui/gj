@@ -88,6 +88,11 @@ impl WorktreeState {
 
 /// Get the state directory path (~/.gj/state/)
 pub fn state_dir() -> Result<PathBuf> {
+    if let Ok(dir) = std::env::var("GJ_STATE_DIR") {
+        if !dir.is_empty() {
+            return Ok(PathBuf::from(dir));
+        }
+    }
     let home_dir = dirs::home_dir().context("Could not determine home directory")?;
     Ok(home_dir.join(".gj").join("state"))
 }
@@ -150,9 +155,13 @@ mod hex {
 mod tests {
     use super::*;
     use tempfile::TempDir;
+    use std::sync::Mutex;
+
+    static ENV_LOCK: Mutex<()> = Mutex::new(());
 
     #[test]
     fn test_path_hash() {
+        let _lock = ENV_LOCK.lock().unwrap();
         let hash1 = path_hash(Path::new("/path/to/worktree"));
         let hash2 = path_hash(Path::new("/path/to/worktree"));
         let hash3 = path_hash(Path::new("/different/path"));
@@ -164,6 +173,7 @@ mod tests {
 
     #[test]
     fn test_state_dir_location() {
+        let _lock = ENV_LOCK.lock().unwrap();
         let dir = state_dir().unwrap();
         let home = dirs::home_dir().unwrap();
         let expected = home.join(".gj").join("state");
@@ -172,6 +182,7 @@ mod tests {
 
     #[test]
     fn test_worktree_state_new() {
+        let _lock = ENV_LOCK.lock().unwrap();
         let state = WorktreeState::new(
             PathBuf::from("/worktree"),
             PathBuf::from("/origin"),
@@ -185,11 +196,13 @@ mod tests {
 
     #[test]
     fn test_state_save_and_load() {
+        let _lock = ENV_LOCK.lock().unwrap();
         let temp_dir = TempDir::new().unwrap();
         let worktree_path = temp_dir.path().join("worktree");
 
         // Override state_dir for test
-        std::env::set_var("XDG_CONFIG_HOME", temp_dir.path());
+        let state_root = temp_dir.path().join("state");
+        std::env::set_var("GJ_STATE_DIR", &state_root);
 
         let state = WorktreeState::new(
             worktree_path.clone(),
@@ -206,14 +219,18 @@ mod tests {
         assert_eq!(loaded.worktree_path, state.worktree_path);
         assert_eq!(loaded.origin_repo, state.origin_repo);
         assert_eq!(loaded.branch, state.branch);
+
+        std::env::remove_var("GJ_STATE_DIR");
     }
 
     #[test]
     fn test_state_delete() {
+        let _lock = ENV_LOCK.lock().unwrap();
         let temp_dir = TempDir::new().unwrap();
         let worktree_path = temp_dir.path().join("worktree");
 
-        std::env::set_var("XDG_CONFIG_HOME", temp_dir.path());
+        let state_root = temp_dir.path().join("state");
+        std::env::set_var("GJ_STATE_DIR", &state_root);
 
         let state = WorktreeState::new(
             worktree_path.clone(),
@@ -226,5 +243,7 @@ mod tests {
 
         state.delete().unwrap();
         assert!(WorktreeState::load(&worktree_path).unwrap().is_none());
+
+        std::env::remove_var("GJ_STATE_DIR");
     }
 }

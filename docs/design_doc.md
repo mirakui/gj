@@ -34,7 +34,7 @@ $ gj exit
 $ gj new
 # Prompts for feature name interactively
 > Enter name: awesome-feature
-# Creates worktree with branch wip/20250201_awesome-feature
+# Creates worktree with branch gj/20250201_awesome-feature
 $ gj exit
 # Clean up when done
 ```
@@ -118,12 +118,12 @@ Displays all worktrees managed by gj.
 
 ```
 my-app/pr-123
-  Branch:  wip/20250201_fix
+  Branch:  gj/20250201_fix
   Path:    ~/.gj/worktrees/my-app/pr-123
   Created: 2 hours ago
 
 my-app/awesome-feature
-  Branch:  wip/20250201_awesome-feature
+  Branch:  gj/20250201_awesome-feature
   Path:    ~/.gj/worktrees/my-app/awesome-feature
   Created: 1 day ago
 ```
@@ -183,7 +183,7 @@ Currently supported: `zsh`
 # Default settings for all repositories
 [default]
 base_dir = "~/.gj/worktrees"  # Base directory for worktrees
-prefix = "wip"                 # Default branch prefix
+prefix = "gj"                 # Default branch prefix
 
 # Default hooks (applied to all repositories)
 [[default.hooks.post_create]]
@@ -284,7 +284,7 @@ The hash is computed from the worktree's absolute path.
 {
   "worktree_path": "/home/user/.gj/worktrees/my-app/pr-123",
   "origin_repo": "/home/user/dev/my-app",
-  "branch": "wip/20250201_fix",
+  "branch": "gj/20250201_fix",
   "created_at": "2025-02-01T10:30:00Z"
 }
 ```

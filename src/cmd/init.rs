@@ -11,8 +11,8 @@ const CONFIG_TEMPLATE: &str = r#"# gj configuration file
 # Base directory for worktrees (default: ~/.gj/worktrees)
 # base_dir = "~/.gj/worktrees"
 
-# Default branch prefix (default: wip)
-# prefix = "wip"
+# Default branch prefix (default: gj)
+# prefix = "gj"
 
 # Example: Default hooks applied to all repositories
 # [[default.hooks.post_create]]

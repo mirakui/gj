@@ -18,7 +18,7 @@ pub struct Config {
 pub struct DefaultConfig {
     /// Base directory for worktrees (default: ~/.gj/worktrees)
     pub base_dir: Option<String>,
-    /// Default branch prefix (default: wip)
+    /// Default branch prefix (default: gj)
     pub prefix: Option<String>,
     /// Default hooks
     #[serde(default)]
@@ -139,7 +139,7 @@ impl Config {
             .and_then(|r| r.prefix.as_ref())
             .or(self.default.prefix.as_ref())
             .map(|s| s.as_str())
-            .unwrap_or("wip")
+            .unwrap_or("gj")
     }
 
     /// Get all hooks (merged default + repo-specific)
@@ -187,7 +187,7 @@ mod tests {
         let toml_content = r#"
 [default]
 base_dir = "~/.gj/worktrees"
-prefix = "wip"
+prefix = "gj"
 
 [[default.hooks.post_create]]
 type = "run"
@@ -210,7 +210,7 @@ command = "npm install"
         let config: Config = toml::from_str(toml_content).unwrap();
 
         assert_eq!(config.default.base_dir, Some("~/.gj/worktrees".to_string()));
-        assert_eq!(config.default.prefix, Some("wip".to_string()));
+        assert_eq!(config.default.prefix, Some("gj".to_string()));
         assert_eq!(config.default.hooks.post_create.len(), 1);
 
         let repo = config.repos.get("my-app").unwrap();
@@ -269,6 +269,6 @@ path = "/path/test"
 "#,
         )
         .unwrap();
-        assert_eq!(config_no_default.get_prefix(None), "wip");
+        assert_eq!(config_no_default.get_prefix(None), "gj");
     }
 }
