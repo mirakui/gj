@@ -15,7 +15,7 @@ cargo test
 
 [[actions]]
 name = "test"
-icon = "tool"
+icon = "test"
 command = '''
 cargo install
 cargo test
