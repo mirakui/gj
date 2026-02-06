@@ -61,7 +61,7 @@ pub fn run(pr_number: u32) -> Result<()> {
     }
 
     // Output the worktree path
-    eprintln!("Created worktree: {}", worktree_path.display());
+    eprintln!("Created worktree: {}", crate::state::display_path(&worktree_path));
     eprintln!("Branch: {} (PR #{})", pr_branch, pr_number);
     println!("{}", worktree_path.display());
 

@@ -66,7 +66,7 @@ pub fn run(force: bool, merge: bool) -> Result<()> {
     state.delete()?;
 
     // Output status message and target directory path
-    eprintln!("Removed worktree: {}", worktree_path.display());
+    eprintln!("Removed worktree: {}", crate::state::display_path(&worktree_path));
     eprintln!("Deleted branch: {}", branch);
     println!("{}", target_dir.display());
 

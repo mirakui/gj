@@ -86,6 +86,16 @@ impl WorktreeState {
     }
 }
 
+/// Convert a path to a display string with ~ for home directory
+pub fn display_path(path: &Path) -> String {
+    if let Some(home) = dirs::home_dir() {
+        if let Ok(suffix) = path.strip_prefix(&home) {
+            return format!("~/{}", suffix.display());
+        }
+    }
+    path.display().to_string()
+}
+
 /// Get the state directory path (~/.gj/state/)
 pub fn state_dir() -> Result<PathBuf> {
     if let Ok(dir) = std::env::var("GJ_STATE_DIR") {
@@ -245,5 +255,28 @@ mod tests {
         assert!(WorktreeState::load(&worktree_path).unwrap().is_none());
 
         std::env::remove_var("GJ_STATE_DIR");
+    }
+
+    #[test]
+    fn test_display_path_with_home() {
+        let _lock = ENV_LOCK.lock().unwrap();
+        let home = dirs::home_dir().unwrap();
+        let path = home.join("foo").join("bar");
+        assert_eq!(display_path(&path), "~/foo/bar");
+    }
+
+    #[test]
+    fn test_display_path_without_home() {
+        let _lock = ENV_LOCK.lock().unwrap();
+        let path = Path::new("/tmp/foo/bar");
+        // /tmp might be under home on some systems, so check if it starts with home
+        let home = dirs::home_dir().unwrap();
+        if path.starts_with(&home) {
+            // Path is under home, should have ~
+            assert!(display_path(path).starts_with("~/"));
+        } else {
+            // Path is not under home, should be unchanged
+            assert_eq!(display_path(path), "/tmp/foo/bar");
+        }
     }
 }

@@ -7,6 +7,7 @@ const SHELL_FUNCTION: &str = r#"function gj() {
 
   if [[ $exit_code -eq 0 && -d "$output" ]]; then
     cd "$output"
+    echo "You are now in: ${output/#$HOME/~}"
   else
     echo "$output"
     return $exit_code

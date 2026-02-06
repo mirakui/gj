@@ -57,7 +57,7 @@ fn cd_to_worktree(name: &str) -> Result<()> {
         _ => {
             eprintln!("Multiple worktrees match '{}'. Please be more specific:", name);
             for s in matching {
-                eprintln!("  - {}", s.worktree_path.display());
+                eprintln!("  - {}", crate::state::display_path(&s.worktree_path));
             }
             bail!("Ambiguous worktree name");
         }

@@ -62,7 +62,7 @@ pub fn run(branch_name: Option<String>) -> Result<()> {
     }
 
     // Output the worktree path
-    eprintln!("Created worktree: {}", worktree_path.display());
+    eprintln!("Created worktree: {}", crate::state::display_path(&worktree_path));
     eprintln!("Branch: {}", branch);
     println!("{}", worktree_path.display());
 
