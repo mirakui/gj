@@ -3,10 +3,11 @@ use anyhow::{bail, Context, Result};
 use crate::config::Config;
 use crate::git;
 use crate::hooks;
+use crate::output::{OutputFormat, WorktreeCreated};
 use crate::state::WorktreeState;
 
 /// Execute the `gj checkout` command
-pub fn run(remote_branch: String) -> Result<()> {
+pub fn run(remote_branch: String, output: OutputFormat) -> Result<()> {
     // Get the git repository root
     let git_root = git::get_repo_root().context("Must be run inside a git repository")?;
 
@@ -23,7 +24,9 @@ pub fn run(remote_branch: String) -> Result<()> {
     let branch_name = parse_branch_name(&remote_branch);
 
     // Fetch the branch from origin
-    eprintln!("Fetching branch '{}'...", branch_name);
+    if matches!(output, OutputFormat::Text) {
+        eprintln!("Fetching branch '{}'...", branch_name);
+    }
     git::fetch_branch(branch_name)?;
 
     // Generate worktree path: {base_dir}/{owner}/{repo}/{branch_name}
@@ -56,14 +59,18 @@ pub fn run(remote_branch: String) -> Result<()> {
 
     // Execute hooks
     let all_hooks = config.get_hooks(repo_config);
-    if let Err(e) = hooks::execute_hooks(&all_hooks, &git_root, &worktree_path) {
-        eprintln!("Warning: Hook failed: {}", e);
+    if let Err(e) = hooks::execute_hooks(&all_hooks, &git_root, &worktree_path, output) {
+        if matches!(output, OutputFormat::Text) {
+            eprintln!("Warning: Hook failed: {}", e);
+        }
     }
 
-    // Output the worktree path
-    eprintln!("Created worktree: {}", crate::state::display_path(&worktree_path));
-    eprintln!("Branch: {}", branch_name);
-    println!("{}", worktree_path.display());
+    // Output the result
+    WorktreeCreated {
+        worktree_path,
+        branch: branch_name.to_string(),
+    }
+    .print(output)?;
 
     Ok(())
 }

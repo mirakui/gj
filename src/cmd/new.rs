@@ -5,10 +5,11 @@ use petname::{Generator, Petnames};
 use crate::config::Config;
 use crate::git;
 use crate::hooks;
+use crate::output::{OutputFormat, WorktreeCreated};
 use crate::state::WorktreeState;
 
 /// Execute the `gj new` command
-pub fn run(branch_suffix: Option<String>, random_suffix: bool) -> Result<()> {
+pub fn run(branch_suffix: Option<String>, random_suffix: bool, output: OutputFormat) -> Result<()> {
     // Get the git repository root
     let git_root = git::get_repo_root().context("Must be run inside a git repository")?;
 
@@ -61,17 +62,18 @@ pub fn run(branch_suffix: Option<String>, random_suffix: bool) -> Result<()> {
 
     // Execute hooks
     let all_hooks = config.get_hooks(repo_config);
-    if let Err(e) = hooks::execute_hooks(&all_hooks, &git_root, &worktree_path) {
-        eprintln!("Warning: Hook failed: {}", e);
+    if let Err(e) = hooks::execute_hooks(&all_hooks, &git_root, &worktree_path, output) {
+        if matches!(output, OutputFormat::Text) {
+            eprintln!("Warning: Hook failed: {}", e);
+        }
     }
 
-    // Output the worktree path
-    eprintln!(
-        "Created worktree: {}",
-        crate::state::display_path(&worktree_path)
-    );
-    eprintln!("Branch: {}", branch);
-    println!("{}", worktree_path.display());
+    // Output the result
+    WorktreeCreated {
+        worktree_path,
+        branch,
+    }
+    .print(output)?;
 
     Ok(())
 }

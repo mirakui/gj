@@ -1,41 +1,32 @@
 use anyhow::Result;
 use chrono::Utc;
 
+use crate::output::{print_worktree_list, OutputFormat, WorktreeListEntry};
 use crate::state;
 
 /// Execute the `gj list` command
-pub fn run() -> Result<()> {
+pub fn run(output: OutputFormat) -> Result<()> {
     let states = state::list_all_states()?;
-
-    if states.is_empty() {
-        eprintln!("No managed worktrees found.");
-        return Ok(());
-    }
-
     let now = Utc::now();
 
-    for state in states {
-        // Get the last two path segments for display name
-        let display_name = get_display_name(&state.worktree_path);
+    let entries: Vec<WorktreeListEntry> = states
+        .iter()
+        .map(|s| {
+            let display_name = get_display_name(&s.worktree_path);
+            let relative_time = format_relative_time(now, s.created_at);
+            let exists = s.worktree_path.exists();
 
-        // Calculate relative time
-        let relative_time = format_relative_time(now, state.created_at);
+            WorktreeListEntry {
+                display_name,
+                branch: s.branch.clone(),
+                path: s.worktree_path.clone(),
+                created_at: relative_time,
+                exists,
+            }
+        })
+        .collect();
 
-        // Check if worktree still exists
-        let exists_marker = if state.worktree_path.exists() {
-            ""
-        } else {
-            " (not found)"
-        };
-
-        println!(
-            "{:<30} {:<40} {}{}",
-            display_name,
-            state.branch,
-            relative_time,
-            exists_marker
-        );
-    }
+    print_worktree_list(&entries, output)?;
 
     Ok(())
 }

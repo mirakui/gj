@@ -2,6 +2,7 @@ use anyhow::{bail, Result};
 use std::fs;
 
 use crate::config::Config;
+use crate::output::{InitResult, OutputFormat};
 
 /// Default configuration template with comments
 const CONFIG_TEMPLATE: &str = r#"# gj configuration file
@@ -35,7 +36,7 @@ const CONFIG_TEMPLATE: &str = r#"# gj configuration file
 "#;
 
 /// Execute the `gj init` command
-pub fn run(force: bool) -> Result<()> {
+pub fn run(force: bool, output: OutputFormat) -> Result<()> {
     let config_dir = Config::config_dir()?;
     let config_path = Config::config_path()?;
 
@@ -56,8 +57,8 @@ pub fn run(force: bool) -> Result<()> {
     // Write the configuration template
     fs::write(&config_path, CONFIG_TEMPLATE)?;
 
-    eprintln!("Created configuration file at {}", config_path.display());
-    eprintln!("\nEdit this file to configure your repositories and hooks.");
+    // Output the result
+    InitResult { config_path }.print(output)?;
 
     Ok(())
 }

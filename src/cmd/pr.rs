@@ -3,10 +3,11 @@ use anyhow::{bail, Context, Result};
 use crate::config::Config;
 use crate::git;
 use crate::hooks;
+use crate::output::{OutputFormat, WorktreeCreated};
 use crate::state::WorktreeState;
 
 /// Execute the `gj pr` command
-pub fn run(pr_number: u32) -> Result<()> {
+pub fn run(pr_number: u32, output: OutputFormat) -> Result<()> {
     // Get the git repository root
     let git_root = git::get_repo_root().context("Must be run inside a git repository")?;
 
@@ -40,7 +41,9 @@ pub fn run(pr_number: u32) -> Result<()> {
     }
 
     // Fetch the PR branch
-    eprintln!("Fetching PR #{}...", pr_number);
+    if matches!(output, OutputFormat::Text) {
+        eprintln!("Fetching PR #{}...", pr_number);
+    }
     git::fetch_branch(&pr_branch)?;
 
     // Create the worktree with the PR branch name, tracking origin
@@ -56,14 +59,18 @@ pub fn run(pr_number: u32) -> Result<()> {
 
     // Execute hooks
     let all_hooks = config.get_hooks(repo_config);
-    if let Err(e) = hooks::execute_hooks(&all_hooks, &git_root, &worktree_path) {
-        eprintln!("Warning: Hook failed: {}", e);
+    if let Err(e) = hooks::execute_hooks(&all_hooks, &git_root, &worktree_path, output) {
+        if matches!(output, OutputFormat::Text) {
+            eprintln!("Warning: Hook failed: {}", e);
+        }
     }
 
-    // Output the worktree path
-    eprintln!("Created worktree: {}", crate::state::display_path(&worktree_path));
-    eprintln!("Branch: {} (PR #{})", pr_branch, pr_number);
-    println!("{}", worktree_path.display());
+    // Output the result
+    WorktreeCreated {
+        worktree_path,
+        branch: pr_branch,
+    }
+    .print(output)?;
 
     Ok(())
 }

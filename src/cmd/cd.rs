@@ -1,27 +1,31 @@
 use anyhow::{bail, Context, Result};
 
+use crate::output::{CdResult, OutputFormat};
 use crate::state::{self, WorktreeState};
 
 /// Execute the `gj cd` command
-pub fn run(target: Option<String>) -> Result<()> {
+pub fn run(target: Option<String>, output: OutputFormat) -> Result<()> {
     match target.as_deref() {
-        Some("@") => cd_to_origin(),
-        Some(name) => cd_to_worktree(name),
-        None => cd_interactive(),
+        Some("@") => cd_to_origin(output),
+        Some(name) => cd_to_worktree(name, output),
+        None => cd_interactive(output),
     }
 }
 
 /// Navigate to the origin repository of the current worktree
-fn cd_to_origin() -> Result<()> {
+fn cd_to_origin(output: OutputFormat) -> Result<()> {
     let state = WorktreeState::load_current()?
         .ok_or_else(|| anyhow::anyhow!("Not in a gj-managed worktree"))?;
 
-    println!("{}", state.origin_repo.display());
+    CdResult {
+        path: state.origin_repo,
+    }
+    .print(output)?;
     Ok(())
 }
 
 /// Navigate to a worktree by name
-fn cd_to_worktree(name: &str) -> Result<()> {
+fn cd_to_worktree(name: &str, output: OutputFormat) -> Result<()> {
     let states = state::list_all_states()?;
 
     // Find worktree matching the name (check last path segment or last two segments)
@@ -51,13 +55,18 @@ fn cd_to_worktree(name: &str) -> Result<()> {
                     state.worktree_path.display()
                 );
             }
-            println!("{}", state.worktree_path.display());
+            CdResult {
+                path: state.worktree_path.clone(),
+            }
+            .print(output)?;
             Ok(())
         }
         _ => {
-            eprintln!("Multiple worktrees match '{}'. Please be more specific:", name);
-            for s in matching {
-                eprintln!("  - {}", crate::state::display_path(&s.worktree_path));
+            if matches!(output, OutputFormat::Text) {
+                eprintln!("Multiple worktrees match '{}'. Please be more specific:", name);
+                for s in &matching {
+                    eprintln!("  - {}", crate::state::display_path(&s.worktree_path));
+                }
             }
             bail!("Ambiguous worktree name");
         }
@@ -65,7 +74,7 @@ fn cd_to_worktree(name: &str) -> Result<()> {
 }
 
 /// Interactive selection of worktree
-fn cd_interactive() -> Result<()> {
+fn cd_interactive(output: OutputFormat) -> Result<()> {
     let states = state::list_all_states()?;
 
     if states.is_empty() {
@@ -105,7 +114,10 @@ fn cd_interactive() -> Result<()> {
         })
         .unwrap();
 
-    println!("{}", existing_states[selected_index].worktree_path.display());
+    CdResult {
+        path: existing_states[selected_index].worktree_path.clone(),
+    }
+    .print(output)?;
     Ok(())
 }
 

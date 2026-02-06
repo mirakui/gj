@@ -4,16 +4,22 @@ use std::path::Path;
 use std::process::Command;
 
 use crate::config::Hook;
+use crate::output::OutputFormat;
 
 /// Execute hooks after worktree creation
-pub fn execute_hooks(hooks: &[&Hook], origin_repo: &Path, worktree_path: &Path) -> Result<()> {
+pub fn execute_hooks(
+    hooks: &[&Hook],
+    origin_repo: &Path,
+    worktree_path: &Path,
+    format: OutputFormat,
+) -> Result<()> {
     for hook in hooks {
         match hook {
             Hook::Copy { from, to, required } => {
-                execute_copy_hook(from, to.as_deref(), *required, origin_repo, worktree_path)?;
+                execute_copy_hook(from, to.as_deref(), *required, origin_repo, worktree_path, format)?;
             }
             Hook::Run { command } => {
-                execute_run_hook(command, worktree_path)?;
+                execute_run_hook(command, worktree_path, format)?;
             }
         }
     }
@@ -27,6 +33,7 @@ fn execute_copy_hook(
     required: bool,
     origin_repo: &Path,
     worktree_path: &Path,
+    format: OutputFormat,
 ) -> Result<()> {
     let source = origin_repo.join(from);
     let dest_name = to.unwrap_or(from);
@@ -53,19 +60,28 @@ fn execute_copy_hook(
     fs::copy(&source, &dest)
         .with_context(|| format!("Failed to copy {} to {}", source.display(), dest.display()))?;
 
-    eprintln!("Copied: {} -> {}", from, dest_name);
+    if matches!(format, OutputFormat::Text) {
+        eprintln!("Copied: {} -> {}", from, dest_name);
+    }
 
     Ok(())
 }
 
 /// Execute a run hook
-fn execute_run_hook(command: &str, worktree_path: &Path) -> Result<()> {
-    eprintln!("Running: {}", command);
+fn execute_run_hook(command: &str, worktree_path: &Path, format: OutputFormat) -> Result<()> {
+    if matches!(format, OutputFormat::Text) {
+        eprintln!("Running: {}", command);
+    }
 
-    let status = Command::new("sh")
-        .arg("-c")
-        .arg(command)
-        .current_dir(worktree_path)
+    let mut cmd = Command::new("sh");
+    cmd.arg("-c").arg(command).current_dir(worktree_path);
+
+    if matches!(format, OutputFormat::Json) {
+        cmd.stdout(std::process::Stdio::null());
+        cmd.stderr(std::process::Stdio::null());
+    }
+
+    let status = cmd
         .status()
         .with_context(|| format!("Failed to execute command: {}", command))?;
 
@@ -90,7 +106,7 @@ mod tests {
         let source_file = origin.path().join(".env");
         fs::write(&source_file, "TEST=value").unwrap();
 
-        execute_copy_hook(".env", None, false, origin.path(), worktree.path()).unwrap();
+        execute_copy_hook(".env", None, false, origin.path(), worktree.path(), OutputFormat::Text).unwrap();
 
         let dest_file = worktree.path().join(".env");
         assert!(dest_file.exists());
@@ -111,6 +127,7 @@ mod tests {
             false,
             origin.path(),
             worktree.path(),
+            OutputFormat::Text,
         )
         .unwrap();
 
@@ -124,7 +141,7 @@ mod tests {
         let worktree = TempDir::new().unwrap();
 
         // Should not fail for optional missing file
-        execute_copy_hook(".nonexistent", None, false, origin.path(), worktree.path()).unwrap();
+        execute_copy_hook(".nonexistent", None, false, origin.path(), worktree.path(), OutputFormat::Text).unwrap();
     }
 
     #[test]
@@ -133,7 +150,7 @@ mod tests {
         let worktree = TempDir::new().unwrap();
 
         // Should fail for required missing file
-        let result = execute_copy_hook(".nonexistent", None, true, origin.path(), worktree.path());
+        let result = execute_copy_hook(".nonexistent", None, true, origin.path(), worktree.path(), OutputFormat::Text);
         assert!(result.is_err());
     }
 
@@ -141,14 +158,14 @@ mod tests {
     fn test_run_hook_success() {
         let worktree = TempDir::new().unwrap();
 
-        execute_run_hook("true", worktree.path()).unwrap();
+        execute_run_hook("true", worktree.path(), OutputFormat::Text).unwrap();
     }
 
     #[test]
     fn test_run_hook_failure() {
         let worktree = TempDir::new().unwrap();
 
-        let result = execute_run_hook("false", worktree.path());
+        let result = execute_run_hook("false", worktree.path(), OutputFormat::Text);
         assert!(result.is_err());
     }
 }

@@ -1,10 +1,11 @@
 use anyhow::{bail, Context, Result};
 
 use crate::git;
+use crate::output::{ExitResult, OutputFormat};
 use crate::state::WorktreeState;
 
 /// Execute the `gj exit` command
-pub fn run(force: bool, merge: bool) -> Result<()> {
+pub fn run(force: bool, merge: bool, output: OutputFormat) -> Result<()> {
     // Load state for current directory
     let state = WorktreeState::load_current()?.context(
         "Not in a gj-managed worktree. Use this command inside a worktree created by gj.",
@@ -49,7 +50,9 @@ pub fn run(force: bool, merge: bool) -> Result<()> {
             );
         }
 
-        eprintln!("Merged '{}' into '{}'", branch, default_branch);
+        if matches!(output, OutputFormat::Text) {
+            eprintln!("Merged '{}' into '{}'", branch, default_branch);
+        }
         merge_worktree
     } else {
         origin_repo.clone()
@@ -65,10 +68,14 @@ pub fn run(force: bool, merge: bool) -> Result<()> {
     // Delete the state file
     state.delete()?;
 
-    // Output status message and target directory path
-    eprintln!("Removed worktree: {}", crate::state::display_path(&worktree_path));
-    eprintln!("Deleted branch: {}", branch);
-    println!("{}", target_dir.display());
+    // Output the result
+    ExitResult {
+        path: target_dir,
+        removed_worktree: worktree_path,
+        deleted_branch: branch,
+        merged: merge,
+    }
+    .print(output)?;
 
     Ok(())
 }
