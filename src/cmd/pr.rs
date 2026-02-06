@@ -44,12 +44,16 @@ pub fn run(pr_number: u32, no_cd: bool) -> Result<()> {
         );
     }
 
-    // Fetch the PR
+    // Fetch the PR branch
     eprintln!("Fetching PR #{}...", pr_number);
-    git::fetch_pr(pr_number)?;
+    git::fetch_branch(&pr_branch)?;
 
-    // Create the worktree at FETCH_HEAD
-    git::worktree_add_at_ref(&worktree_path, "FETCH_HEAD")?;
+    // Create the worktree with the PR branch name, tracking origin
+    let git_ref = format!("origin/{}", pr_branch);
+    git::worktree_add_with_branch(&worktree_path, &pr_branch, &git_ref)?;
+
+    // Set upstream tracking
+    git::set_upstream(&worktree_path, &pr_branch, &git_ref)?;
 
     // Save state
     let state = WorktreeState::new(worktree_path.clone(), git_root.clone(), pr_branch.clone());

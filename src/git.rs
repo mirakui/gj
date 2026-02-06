@@ -57,6 +57,44 @@ pub fn worktree_add_at_ref(path: &Path, git_ref: &str) -> Result<()> {
     Ok(())
 }
 
+/// Create a worktree at a specific ref with a named branch
+pub fn worktree_add_with_branch(path: &Path, branch: &str, git_ref: &str) -> Result<()> {
+    let output = Command::new("git")
+        .args([
+            "worktree",
+            "add",
+            "-b",
+            branch,
+            path.to_string_lossy().as_ref(),
+            git_ref,
+        ])
+        .output()
+        .context("Failed to execute git worktree add")?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        bail!("Failed to create worktree: {}", stderr.trim());
+    }
+
+    Ok(())
+}
+
+/// Set upstream tracking for a branch in a worktree
+pub fn set_upstream(worktree_path: &Path, branch: &str, upstream: &str) -> Result<()> {
+    let output = Command::new("git")
+        .args(["branch", "--set-upstream-to", upstream, branch])
+        .current_dir(worktree_path)
+        .output()
+        .context("Failed to set upstream")?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        bail!("Failed to set upstream: {}", stderr.trim());
+    }
+
+    Ok(())
+}
+
 /// Remove a worktree
 pub fn worktree_remove(path: &Path, force: bool, repo_path: &Path) -> Result<()> {
     let path_str = path.to_string_lossy();
@@ -115,23 +153,6 @@ pub fn has_uncommitted_changes() -> Result<bool> {
     }
 
     Ok(!output.stdout.is_empty())
-}
-
-/// Fetch a PR from GitHub
-pub fn fetch_pr(pr_number: u32) -> Result<()> {
-    let refspec = format!("pull/{}/head", pr_number);
-
-    let output = Command::new("git")
-        .args(["fetch", "origin", &refspec])
-        .output()
-        .context("Failed to fetch PR")?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        bail!("Failed to fetch PR #{}: {}", pr_number, stderr.trim());
-    }
-
-    Ok(())
 }
 
 /// Get PR branch name using gh CLI
