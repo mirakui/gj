@@ -28,7 +28,7 @@ pub fn run(force: bool, merge: bool) -> Result<()> {
     let worktree_path = state.worktree_path.clone();
 
     // Handle merge if requested
-    if merge {
+    let target_dir = if merge {
         // Get the default branch
         let default_branch = git::get_default_branch(&origin_repo)?;
 
@@ -50,7 +50,10 @@ pub fn run(force: bool, merge: bool) -> Result<()> {
         }
 
         eprintln!("Merged '{}' into '{}'", branch, default_branch);
-    }
+        merge_worktree
+    } else {
+        origin_repo.clone()
+    };
 
     // Remove the worktree (run from origin repo)
     git::worktree_remove(&worktree_path, force, &origin_repo)?;
@@ -62,10 +65,10 @@ pub fn run(force: bool, merge: bool) -> Result<()> {
     // Delete the state file
     state.delete()?;
 
-    // Output status message and origin repo path
+    // Output status message and target directory path
     eprintln!("Removed worktree: {}", worktree_path.display());
     eprintln!("Deleted branch: {}", branch);
-    println!("{}", origin_repo.display());
+    println!("{}", target_dir.display());
 
     Ok(())
 }
