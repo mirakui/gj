@@ -8,7 +8,7 @@ use crate::hooks;
 use crate::state::WorktreeState;
 
 /// Execute the `gj new` command
-pub fn run(branch_name: Option<String>) -> Result<()> {
+pub fn run(branch_suffix: Option<String>) -> Result<()> {
     // Get the git repository root
     let git_root = git::get_repo_root().context("Must be run inside a git repository")?;
 
@@ -22,7 +22,7 @@ pub fn run(branch_name: Option<String>) -> Result<()> {
     let github_repo = git::get_github_repo_info()?;
 
     // Get or prompt for branch name
-    let input_name = match branch_name {
+    let input_name = match branch_suffix {
         Some(name) => name,
         None => prompt_branch_name()?,
     };
@@ -62,7 +62,10 @@ pub fn run(branch_name: Option<String>) -> Result<()> {
     }
 
     // Output the worktree path
-    eprintln!("Created worktree: {}", crate::state::display_path(&worktree_path));
+    eprintln!(
+        "Created worktree: {}",
+        crate::state::display_path(&worktree_path)
+    );
     eprintln!("Branch: {}", branch);
     println!("{}", worktree_path.display());
 
@@ -128,7 +131,12 @@ mod tests {
     fn test_generate_random_name() {
         let name = generate_random_name();
         // Should contain exactly one hyphen (two words separated by hyphen)
-        assert_eq!(name.matches('-').count(), 1, "Expected format: word-word, got: {}", name);
+        assert_eq!(
+            name.matches('-').count(),
+            1,
+            "Expected format: word-word, got: {}",
+            name
+        );
         // Should not be empty
         assert!(!name.is_empty());
         // Should only contain lowercase letters and hyphens
