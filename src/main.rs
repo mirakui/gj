@@ -27,7 +27,11 @@ enum Commands {
     /// Create a new worktree for feature development
     New {
         /// Branch suffix (prompted interactively if not provided)
+        #[arg(conflicts_with = "random_suffix")]
         branch_suffix: Option<String>,
+        /// Generate a random branch suffix automatically
+        #[arg(long)]
+        random_suffix: bool,
     },
 
     /// Create a worktree from a remote branch
@@ -77,7 +81,7 @@ fn main() -> Result<()> {
 
     match cli.command {
         Commands::Pr { number } => cmd::pr::run(number),
-        Commands::New { branch_suffix } => cmd::new::run(branch_suffix),
+        Commands::New { branch_suffix, random_suffix } => cmd::new::run(branch_suffix, random_suffix),
         Commands::Checkout { remote_branch } => cmd::checkout::run(remote_branch),
         Commands::List => cmd::list::run(),
         Commands::Cd { target } => cmd::cd::run(target),

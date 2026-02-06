@@ -8,7 +8,7 @@ use crate::hooks;
 use crate::state::WorktreeState;
 
 /// Execute the `gj new` command
-pub fn run(branch_suffix: Option<String>) -> Result<()> {
+pub fn run(branch_suffix: Option<String>, random_suffix: bool) -> Result<()> {
     // Get the git repository root
     let git_root = git::get_repo_root().context("Must be run inside a git repository")?;
 
@@ -22,9 +22,13 @@ pub fn run(branch_suffix: Option<String>) -> Result<()> {
     let github_repo = git::get_github_repo_info()?;
 
     // Get or prompt for branch name
-    let input_name = match branch_suffix {
-        Some(name) => name,
-        None => prompt_branch_name()?,
+    let input_name = if random_suffix {
+        generate_random_name()
+    } else {
+        match branch_suffix {
+            Some(name) => name,
+            None => prompt_branch_name()?,
+        }
     };
 
     // Generate branch name: {prefix}/{YYYYMMDD}_{input}
