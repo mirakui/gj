@@ -22,18 +22,12 @@ enum Commands {
     Pr {
         /// PR number
         number: u32,
-        /// Do not change directory, just print the path
-        #[arg(long)]
-        no_cd: bool,
     },
 
     /// Create a new worktree for feature development
     New {
         /// Branch name (prompted interactively if not provided)
         branch_name: Option<String>,
-        /// Do not change directory, just print the path
-        #[arg(long)]
-        no_cd: bool,
     },
 
     /// Create a worktree from a remote branch
@@ -41,9 +35,6 @@ enum Commands {
     Checkout {
         /// Remote branch name (e.g., main, feature/foo, or origin/main)
         remote_branch: String,
-        /// Do not change directory, just print the path
-        #[arg(long)]
-        no_cd: bool,
     },
 
     /// List all managed worktrees
@@ -85,9 +76,9 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Pr { number, no_cd } => cmd::pr::run(number, no_cd),
-        Commands::New { branch_name, no_cd } => cmd::new::run(branch_name, no_cd),
-        Commands::Checkout { remote_branch, no_cd } => cmd::checkout::run(remote_branch, no_cd),
+        Commands::Pr { number } => cmd::pr::run(number),
+        Commands::New { branch_name } => cmd::new::run(branch_name),
+        Commands::Checkout { remote_branch } => cmd::checkout::run(remote_branch),
         Commands::List => cmd::list::run(),
         Commands::Cd { target } => cmd::cd::run(target),
         Commands::Exit { force, merge } => cmd::exit::run(force, merge),

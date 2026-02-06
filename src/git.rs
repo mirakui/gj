@@ -2,6 +2,71 @@ use anyhow::{bail, Context, Result};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+/// GitHub repository information parsed from remote URL
+#[derive(Debug, Clone, PartialEq)]
+pub struct GitHubRepo {
+    pub owner: String,
+    pub repo: String,
+}
+
+/// Get GitHub repository info from the origin remote URL
+pub fn get_github_repo_info() -> Result<GitHubRepo> {
+    let output = Command::new("git")
+        .args(["remote", "get-url", "origin"])
+        .output()
+        .context("Failed to execute git remote get-url")?;
+
+    if !output.status.success() {
+        bail!("Failed to get origin remote URL. Is this a git repository with an origin remote?");
+    }
+
+    let url = String::from_utf8(output.stdout)
+        .context("Invalid UTF-8 in git output")?
+        .trim()
+        .to_string();
+
+    parse_github_url(&url)
+}
+
+/// Parse a GitHub URL (SSH or HTTPS) into owner and repo
+fn parse_github_url(url: &str) -> Result<GitHubRepo> {
+    // SSH format: git@github.com:owner/repo.git
+    if let Some(rest) = url.strip_prefix("git@github.com:") {
+        let path = rest.strip_suffix(".git").unwrap_or(rest);
+        return parse_owner_repo(path);
+    }
+
+    // HTTPS format: https://github.com/owner/repo.git
+    if let Some(rest) = url.strip_prefix("https://github.com/") {
+        let path = rest.strip_suffix(".git").unwrap_or(rest);
+        return parse_owner_repo(path);
+    }
+
+    // HTTP format: http://github.com/owner/repo.git
+    if let Some(rest) = url.strip_prefix("http://github.com/") {
+        let path = rest.strip_suffix(".git").unwrap_or(rest);
+        return parse_owner_repo(path);
+    }
+
+    bail!(
+        "Unsupported remote URL format: {}. Only GitHub repositories (github.com) are supported.",
+        url
+    )
+}
+
+/// Parse "owner/repo" string into GitHubRepo
+fn parse_owner_repo(path: &str) -> Result<GitHubRepo> {
+    let parts: Vec<&str> = path.split('/').collect();
+    if parts.len() != 2 || parts[0].is_empty() || parts[1].is_empty() {
+        bail!("Invalid GitHub repository path: {}", path);
+    }
+
+    Ok(GitHubRepo {
+        owner: parts[0].to_string(),
+        repo: parts[1].to_string(),
+    })
+}
+
 /// Get the root directory of the current git repository
 pub fn get_repo_root() -> Result<PathBuf> {
     let output = Command::new("git")
@@ -691,5 +756,86 @@ mod tests {
             .output()
             .expect("Failed to list branches");
         assert!(output.stdout.is_empty(), "Branch should be deleted");
+    }
+
+    #[test]
+    fn test_parse_github_url_ssh() {
+        let result = parse_github_url("git@github.com:mirakui/my_repo.git").unwrap();
+        assert_eq!(
+            result,
+            GitHubRepo {
+                owner: "mirakui".to_string(),
+                repo: "my_repo".to_string()
+            }
+        );
+    }
+
+    #[test]
+    fn test_parse_github_url_ssh_without_git_suffix() {
+        let result = parse_github_url("git@github.com:mirakui/my_repo").unwrap();
+        assert_eq!(
+            result,
+            GitHubRepo {
+                owner: "mirakui".to_string(),
+                repo: "my_repo".to_string()
+            }
+        );
+    }
+
+    #[test]
+    fn test_parse_github_url_https() {
+        let result = parse_github_url("https://github.com/mirakui/my_repo.git").unwrap();
+        assert_eq!(
+            result,
+            GitHubRepo {
+                owner: "mirakui".to_string(),
+                repo: "my_repo".to_string()
+            }
+        );
+    }
+
+    #[test]
+    fn test_parse_github_url_https_without_git_suffix() {
+        let result = parse_github_url("https://github.com/mirakui/my_repo").unwrap();
+        assert_eq!(
+            result,
+            GitHubRepo {
+                owner: "mirakui".to_string(),
+                repo: "my_repo".to_string()
+            }
+        );
+    }
+
+    #[test]
+    fn test_parse_github_url_http() {
+        let result = parse_github_url("http://github.com/mirakui/my_repo.git").unwrap();
+        assert_eq!(
+            result,
+            GitHubRepo {
+                owner: "mirakui".to_string(),
+                repo: "my_repo".to_string()
+            }
+        );
+    }
+
+    #[test]
+    fn test_parse_github_url_unsupported_host() {
+        let result = parse_github_url("git@gitlab.com:mirakui/my_repo.git");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Only GitHub repositories"));
+    }
+
+    #[test]
+    fn test_parse_github_url_invalid_path() {
+        // Missing repo name
+        let result = parse_github_url("git@github.com:mirakui.git");
+        assert!(result.is_err());
+
+        // Empty owner
+        let result = parse_github_url("git@github.com:/repo.git");
+        assert!(result.is_err());
     }
 }

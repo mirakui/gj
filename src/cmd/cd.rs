@@ -109,8 +109,17 @@ fn cd_interactive() -> Result<()> {
     Ok(())
 }
 
-/// Get the display name from a worktree path (last 2 segments)
+/// Get the display name from a worktree path (everything after "worktrees/")
+/// Example: ~/.gj/worktrees/mirakui/my_repo/gj/20260205_hello -> mirakui/my_repo/gj/20260205_hello
 fn get_display_name(path: &std::path::Path) -> String {
+    let path_str = path.to_string_lossy();
+
+    // Find "worktrees/" in the path and return everything after it
+    if let Some(idx) = path_str.find("worktrees/") {
+        return path_str[idx + "worktrees/".len()..].to_string();
+    }
+
+    // Fallback: return last 2 components if "worktrees/" not found
     let components: Vec<_> = path
         .components()
         .rev()
@@ -133,10 +142,23 @@ mod tests {
     use std::path::PathBuf;
 
     #[test]
-    fn test_get_display_name() {
-        let path = PathBuf::from("/Users/test/.gj/my-repo/feature-branch");
-        assert_eq!(get_display_name(&path), "my-repo/feature-branch");
+    fn test_get_display_name_with_worktrees() {
+        let path = PathBuf::from("/Users/test/.gj/worktrees/mirakui/my_repo/gj/20260205_hello");
+        assert_eq!(
+            get_display_name(&path),
+            "mirakui/my_repo/gj/20260205_hello"
+        );
+    }
 
+    #[test]
+    fn test_get_display_name_with_pr() {
+        let path = PathBuf::from("/Users/test/.gj/worktrees/mirakui/my_repo/pr-123");
+        assert_eq!(get_display_name(&path), "mirakui/my_repo/pr-123");
+    }
+
+    #[test]
+    fn test_get_display_name_fallback() {
+        // Without "worktrees/" in path, falls back to last 2 components
         let path = PathBuf::from("/a/b");
         assert_eq!(get_display_name(&path), "a/b");
     }

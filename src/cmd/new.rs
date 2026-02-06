@@ -8,7 +8,7 @@ use crate::hooks;
 use crate::state::WorktreeState;
 
 /// Execute the `gj new` command
-pub fn run(branch_name: Option<String>, no_cd: bool) -> Result<()> {
+pub fn run(branch_name: Option<String>) -> Result<()> {
     // Get the git repository root
     let git_root = git::get_repo_root().context("Must be run inside a git repository")?;
 
@@ -16,18 +16,10 @@ pub fn run(branch_name: Option<String>, no_cd: bool) -> Result<()> {
     let config = Config::load_required()?;
 
     // Find the repository configuration (optional - works without registration)
-    let (repo_name, repo_config) = match config.find_repo(&git_root) {
-        Some((name, cfg)) => (name.clone(), Some(cfg)),
-        None => {
-            // Use directory name as repo_name when not registered
-            let name = git_root
-                .file_name()
-                .and_then(|n| n.to_str())
-                .unwrap_or("repo")
-                .to_string();
-            (name, None)
-        }
-    };
+    let repo_config = config.find_repo(&git_root).map(|(_, cfg)| cfg);
+
+    // Get GitHub repository info from remote URL
+    let github_repo = git::get_github_repo_info()?;
 
     // Get or prompt for branch name
     let input_name = match branch_name {
@@ -40,16 +32,19 @@ pub fn run(branch_name: Option<String>, no_cd: bool) -> Result<()> {
     let date = Utc::now().format("%Y%m%d");
     let branch = format!("{}/{}_{}", prefix, date, input_name);
 
-    // Generate worktree path: {base_dir}/{repo_name}/{input}
+    // Generate worktree path: {base_dir}/{owner}/{repo}/{branch}
     let base_dir = config.get_base_dir(repo_config);
-    let worktree_path = base_dir.join(&repo_name).join(&input_name);
+    let worktree_path = base_dir
+        .join(&github_repo.owner)
+        .join(&github_repo.repo)
+        .join(&branch);
 
     // Check if worktree path already exists
     if worktree_path.exists() {
         bail!(
             "Worktree already exists at {}. Use `gj cd {}` to switch to it.",
             worktree_path.display(),
-            input_name
+            branch
         );
     }
 
@@ -67,10 +62,8 @@ pub fn run(branch_name: Option<String>, no_cd: bool) -> Result<()> {
     }
 
     // Output the worktree path
-    if no_cd {
-        eprintln!("Worktree created at: {}", worktree_path.display());
-        eprintln!("Branch: {}", branch);
-    }
+    eprintln!("Created worktree: {}", worktree_path.display());
+    eprintln!("Branch: {}", branch);
     println!("{}", worktree_path.display());
 
     Ok(())

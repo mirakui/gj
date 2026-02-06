@@ -62,7 +62,9 @@ pub fn run(force: bool, merge: bool) -> Result<()> {
     // Delete the state file
     state.delete()?;
 
-    // Output the origin repo path for the shell wrapper to cd into
+    // Output status message and origin repo path
+    eprintln!("Removed worktree: {}", worktree_path.display());
+    eprintln!("Deleted branch: {}", branch);
     println!("{}", origin_repo.display());
 
     Ok(())

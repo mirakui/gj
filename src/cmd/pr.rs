@@ -6,7 +6,7 @@ use crate::hooks;
 use crate::state::WorktreeState;
 
 /// Execute the `gj pr` command
-pub fn run(pr_number: u32, no_cd: bool) -> Result<()> {
+pub fn run(pr_number: u32) -> Result<()> {
     // Get the git repository root
     let git_root = git::get_repo_root().context("Must be run inside a git repository")?;
 
@@ -14,26 +14,21 @@ pub fn run(pr_number: u32, no_cd: bool) -> Result<()> {
     let config = Config::load_required()?;
 
     // Find the repository configuration (optional - works without registration)
-    let (repo_name, repo_config) = match config.find_repo(&git_root) {
-        Some((name, cfg)) => (name.clone(), Some(cfg)),
-        None => {
-            // Use directory name as repo_name when not registered
-            let name = git_root
-                .file_name()
-                .and_then(|n| n.to_str())
-                .unwrap_or("repo")
-                .to_string();
-            (name, None)
-        }
-    };
+    let repo_config = config.find_repo(&git_root).map(|(_, cfg)| cfg);
+
+    // Get GitHub repository info from remote URL
+    let github_repo = git::get_github_repo_info()?;
 
     // Get PR branch name using gh CLI
     let pr_branch = git::get_pr_branch(pr_number)?;
 
-    // Generate worktree path: {base_dir}/{repo_name}/pr-{number}
+    // Generate worktree path: {base_dir}/{owner}/{repo}/pr-{number}
     let base_dir = config.get_base_dir(repo_config);
     let worktree_name = pr_worktree_name(pr_number);
-    let worktree_path = base_dir.join(&repo_name).join(&worktree_name);
+    let worktree_path = base_dir
+        .join(&github_repo.owner)
+        .join(&github_repo.repo)
+        .join(&worktree_name);
 
     // Check if worktree path already exists
     if worktree_path.exists() {
@@ -66,10 +61,8 @@ pub fn run(pr_number: u32, no_cd: bool) -> Result<()> {
     }
 
     // Output the worktree path
-    if no_cd {
-        eprintln!("Worktree created at: {}", worktree_path.display());
-        eprintln!("Branch: {} (PR #{})", pr_branch, pr_number);
-    }
+    eprintln!("Created worktree: {}", worktree_path.display());
+    eprintln!("Branch: {} (PR #{})", pr_branch, pr_number);
     println!("{}", worktree_path.display());
 
     Ok(())
