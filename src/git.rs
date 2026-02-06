@@ -216,6 +216,129 @@ pub fn is_gh_available() -> bool {
         .unwrap_or(false)
 }
 
+/// Get the default branch name from origin
+pub fn get_default_branch(repo_path: &Path) -> Result<String> {
+    // Try to get from origin/HEAD
+    let output = Command::new("git")
+        .args(["symbolic-ref", "refs/remotes/origin/HEAD"])
+        .current_dir(repo_path)
+        .output()
+        .context("Failed to get default branch")?;
+
+    if output.status.success() {
+        let ref_name = String::from_utf8(output.stdout)
+            .context("Invalid UTF-8 in git output")?
+            .trim()
+            .to_string();
+        // refs/remotes/origin/main -> main
+        if let Some(branch) = ref_name.strip_prefix("refs/remotes/origin/") {
+            return Ok(branch.to_string());
+        }
+    }
+
+    // Fallback: check if main exists
+    let output = Command::new("git")
+        .args(["rev-parse", "--verify", "refs/heads/main"])
+        .current_dir(repo_path)
+        .output()
+        .context("Failed to check main branch")?;
+
+    if output.status.success() {
+        return Ok("main".to_string());
+    }
+
+    // Fallback: check if master exists
+    let output = Command::new("git")
+        .args(["rev-parse", "--verify", "refs/heads/master"])
+        .current_dir(repo_path)
+        .output()
+        .context("Failed to check master branch")?;
+
+    if output.status.success() {
+        return Ok("master".to_string());
+    }
+
+    bail!("Could not determine default branch. Neither 'main' nor 'master' exists.");
+}
+
+/// Checkout a branch
+#[allow(dead_code)]
+pub fn checkout_branch(branch: &str, repo_path: &Path) -> Result<()> {
+    let output = Command::new("git")
+        .args(["checkout", branch])
+        .current_dir(repo_path)
+        .output()
+        .context("Failed to checkout branch")?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        bail!("Failed to checkout branch {}: {}", branch, stderr.trim());
+    }
+
+    Ok(())
+}
+
+/// Merge a branch into the current branch
+pub fn merge_branch(branch: &str, repo_path: &Path) -> Result<()> {
+    let output = Command::new("git")
+        .args(["merge", branch, "--no-edit"])
+        .current_dir(repo_path)
+        .output()
+        .context("Failed to merge branch")?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        bail!("Failed to merge branch {}: {}", branch, stderr.trim());
+    }
+
+    Ok(())
+}
+
+/// Abort an in-progress merge
+pub fn merge_abort(repo_path: &Path) -> Result<()> {
+    let output = Command::new("git")
+        .args(["merge", "--abort"])
+        .current_dir(repo_path)
+        .output()
+        .context("Failed to abort merge")?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        bail!("Failed to abort merge: {}", stderr.trim());
+    }
+
+    Ok(())
+}
+
+/// Find the worktree path that has a specific branch checked out
+pub fn find_worktree_for_branch(branch: &str, repo_path: &Path) -> Result<Option<PathBuf>> {
+    let output = Command::new("git")
+        .args(["worktree", "list", "--porcelain"])
+        .current_dir(repo_path)
+        .output()
+        .context("Failed to list worktrees")?;
+
+    if !output.status.success() {
+        bail!("Failed to list worktrees");
+    }
+
+    let output_str = String::from_utf8(output.stdout).context("Invalid UTF-8 in git output")?;
+
+    let mut current_worktree: Option<PathBuf> = None;
+
+    for line in output_str.lines() {
+        if let Some(path) = line.strip_prefix("worktree ") {
+            current_worktree = Some(PathBuf::from(path));
+        } else if let Some(branch_name) = line.strip_prefix("branch refs/heads/") {
+            if branch_name == branch {
+                return Ok(current_worktree);
+            }
+        }
+    }
+
+    Ok(None)
+}
+
 /// Get the current branch name
 #[allow(dead_code)]
 pub fn current_branch() -> Result<Option<String>> {

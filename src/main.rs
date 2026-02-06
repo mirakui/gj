@@ -61,6 +61,9 @@ enum Commands {
         /// Force removal even with uncommitted changes
         #[arg(long, short)]
         force: bool,
+        /// Merge the worktree branch into the default branch before exiting
+        #[arg(long, short)]
+        merge: bool,
     },
 
     /// Output shell initialization script
@@ -87,7 +90,7 @@ fn main() -> Result<()> {
         Commands::Checkout { remote_branch, no_cd } => cmd::checkout::run(remote_branch, no_cd),
         Commands::List => cmd::list::run(),
         Commands::Cd { target } => cmd::cd::run(target),
-        Commands::Exit { force } => cmd::exit::run(force),
+        Commands::Exit { force, merge } => cmd::exit::run(force, merge),
         Commands::ShellInit { shell } => cmd::shell_init::run(&shell),
         Commands::Init { force } => cmd::init::run(force),
     }

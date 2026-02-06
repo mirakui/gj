@@ -1,5 +1,6 @@
 use anyhow::{bail, Context, Result};
 use chrono::Utc;
+use petname::{Generator, Petnames};
 
 use crate::config::Config;
 use crate::git;
@@ -77,19 +78,30 @@ pub fn run(branch_name: Option<String>, no_cd: bool) -> Result<()> {
 
 /// Prompt the user for a branch name
 fn prompt_branch_name() -> Result<String> {
-    let name = inquire::Text::new("Enter branch name:")
-        .with_help_message("e.g., awesome-feature")
+    let random_name = generate_random_name();
+    let help_message = format!("e.g., awesome-feature (empty = {})", random_name);
+
+    let name = inquire::Text::new("Enter branch suffix:")
+        .with_help_message(&help_message)
         .prompt()
         .context("Failed to get branch name input")?;
 
     let name = name.trim().to_string();
     if name.is_empty() {
-        bail!("Branch name cannot be empty");
+        return Ok(random_name);
     }
 
     // Sanitize the name (replace spaces with hyphens, etc.)
     let sanitized = sanitize_name(&name);
     Ok(sanitized)
+}
+
+/// Generate a random name using two English words (e.g., "charming-tomato")
+fn generate_random_name() -> String {
+    let petnames = Petnames::default();
+    petnames
+        .generate_one(2, "-")
+        .unwrap_or_else(|| "random-branch".to_string())
 }
 
 /// Sanitize a branch name input
@@ -117,5 +129,16 @@ mod tests {
         assert_eq!(sanitize_name("my feature"), "my-feature");
         assert_eq!(sanitize_name("my/feature"), "my-feature");
         assert_eq!(sanitize_name("feature123"), "feature123");
+    }
+
+    #[test]
+    fn test_generate_random_name() {
+        let name = generate_random_name();
+        // Should contain exactly one hyphen (two words separated by hyphen)
+        assert_eq!(name.matches('-').count(), 1, "Expected format: word-word, got: {}", name);
+        // Should not be empty
+        assert!(!name.is_empty());
+        // Should only contain lowercase letters and hyphens
+        assert!(name.chars().all(|c| c.is_ascii_lowercase() || c == '-'));
     }
 }
