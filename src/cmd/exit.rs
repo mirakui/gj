@@ -32,13 +32,17 @@ pub fn run(force: bool, merge: bool) -> Result<()> {
         // Get the default branch
         let default_branch = git::get_default_branch(&origin_repo)?;
 
-        // Checkout the default branch in origin repo
-        git::checkout_branch(&default_branch, &origin_repo)?;
+        // Find the worktree that has the default branch checked out
+        let merge_worktree = git::find_worktree_for_branch(&default_branch, &origin_repo)?
+            .context(format!(
+                "Default branch '{}' is not checked out in any worktree",
+                default_branch
+            ))?;
 
-        // Merge the worktree branch
-        if let Err(e) = git::merge_branch(&branch, &origin_repo) {
+        // Merge the worktree branch in the target worktree
+        if let Err(e) = git::merge_branch(&branch, &merge_worktree) {
             // Merge failed, abort and return error
-            let _ = git::merge_abort(&origin_repo);
+            let _ = git::merge_abort(&merge_worktree);
             bail!(
                 "Merge failed. Conflict detected. Aborting merge.\nError: {}",
                 e

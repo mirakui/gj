@@ -241,6 +241,7 @@ pub fn get_default_branch(repo_path: &Path) -> Result<String> {
 }
 
 /// Checkout a branch
+#[allow(dead_code)]
 pub fn checkout_branch(branch: &str, repo_path: &Path) -> Result<()> {
     let output = Command::new("git")
         .args(["checkout", branch])
@@ -286,6 +287,35 @@ pub fn merge_abort(repo_path: &Path) -> Result<()> {
     }
 
     Ok(())
+}
+
+/// Find the worktree path that has a specific branch checked out
+pub fn find_worktree_for_branch(branch: &str, repo_path: &Path) -> Result<Option<PathBuf>> {
+    let output = Command::new("git")
+        .args(["worktree", "list", "--porcelain"])
+        .current_dir(repo_path)
+        .output()
+        .context("Failed to list worktrees")?;
+
+    if !output.status.success() {
+        bail!("Failed to list worktrees");
+    }
+
+    let output_str = String::from_utf8(output.stdout).context("Invalid UTF-8 in git output")?;
+
+    let mut current_worktree: Option<PathBuf> = None;
+
+    for line in output_str.lines() {
+        if let Some(path) = line.strip_prefix("worktree ") {
+            current_worktree = Some(PathBuf::from(path));
+        } else if let Some(branch_name) = line.strip_prefix("branch refs/heads/") {
+            if branch_name == branch {
+                return Ok(current_worktree);
+            }
+        }
+    }
+
+    Ok(None)
 }
 
 /// Get the current branch name
