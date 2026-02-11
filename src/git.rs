@@ -107,21 +107,6 @@ pub fn worktree_add_new_branch(path: &Path, branch: &str) -> Result<()> {
     Ok(())
 }
 
-/// Create a worktree at a specific commit/ref
-pub fn worktree_add_at_ref(path: &Path, git_ref: &str) -> Result<()> {
-    let output = Command::new("git")
-        .args(["worktree", "add", path.to_string_lossy().as_ref(), git_ref])
-        .output()
-        .context("Failed to execute git worktree add")?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        bail!("Failed to create worktree: {}", stderr.trim());
-    }
-
-    Ok(())
-}
-
 /// Create a worktree at a specific ref with a named branch
 pub fn worktree_add_with_branch(path: &Path, branch: &str, git_ref: &str) -> Result<()> {
     let output = Command::new("git")

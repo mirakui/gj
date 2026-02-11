@@ -45,9 +45,12 @@ pub fn run(remote_branch: String, output: OutputFormat) -> Result<()> {
         );
     }
 
-    // Create the worktree at origin/{branch}
+    // Create the worktree with a local branch tracking origin
     let git_ref = format!("origin/{}", branch_name);
-    git::worktree_add_at_ref(&worktree_path, &git_ref)?;
+    git::worktree_add_with_branch(&worktree_path, branch_name, &git_ref)?;
+
+    // Set upstream tracking
+    git::set_upstream(&worktree_path, branch_name, &git_ref)?;
 
     // Save state
     let state = WorktreeState::new(
