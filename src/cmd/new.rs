@@ -53,8 +53,13 @@ pub fn run(branch_suffix: Option<String>, random_suffix: bool, output: OutputFor
         );
     }
 
+    // Fetch default branch and use as start point
+    let default_branch = git::get_default_branch(&git_root)?;
+    git::fetch_branch(&default_branch)?;
+    let start_point = format!("origin/{}", default_branch);
+
     // Create the worktree
-    git::worktree_add_new_branch(&worktree_path, &branch)?;
+    git::worktree_add_new_branch(&worktree_path, &branch, &start_point)?;
 
     // Save state
     let state = WorktreeState::new(worktree_path.clone(), git_root.clone(), branch.clone());

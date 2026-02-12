@@ -67,10 +67,11 @@ fn parse_owner_repo(path: &str) -> Result<GitHubRepo> {
     })
 }
 
-/// Get the root directory of the current git repository
+/// Get the root directory of the current git repository.
+/// In a worktree, this returns the main repository root (not the worktree root).
 pub fn get_repo_root() -> Result<PathBuf> {
     let output = Command::new("git")
-        .args(["rev-parse", "--show-toplevel"])
+        .args(["rev-parse", "--path-format=absolute", "--git-common-dir"])
         .output()
         .context("Failed to execute git command")?;
 
@@ -78,16 +79,22 @@ pub fn get_repo_root() -> Result<PathBuf> {
         bail!("Not in a git repository");
     }
 
-    let path = String::from_utf8(output.stdout)
+    let git_common_dir = String::from_utf8(output.stdout)
         .context("Invalid UTF-8 in git output")?
         .trim()
         .to_string();
 
-    Ok(PathBuf::from(path))
+    // --git-common-dir returns the .git directory; its parent is the repo root
+    let path = PathBuf::from(git_common_dir);
+    let repo_root = path
+        .parent()
+        .context("Failed to determine repository root from git common dir")?;
+
+    Ok(repo_root.to_path_buf())
 }
 
 /// Create a new worktree with a new branch
-pub fn worktree_add_new_branch(path: &Path, branch: &str) -> Result<()> {
+pub fn worktree_add_new_branch(path: &Path, branch: &str, start_point: &str) -> Result<()> {
     let output = Command::new("git")
         .args([
             "worktree",
@@ -95,6 +102,7 @@ pub fn worktree_add_new_branch(path: &Path, branch: &str) -> Result<()> {
             "-b",
             branch,
             path.to_string_lossy().as_ref(),
+            start_point,
         ])
         .output()
         .context("Failed to execute git worktree add")?;
@@ -534,7 +542,7 @@ mod tests {
     /// Helper to get repo root in a specific directory
     fn get_repo_root_in(dir: &Path) -> Result<PathBuf> {
         let output = Command::new("git")
-            .args(["rev-parse", "--show-toplevel"])
+            .args(["rev-parse", "--path-format=absolute", "--git-common-dir"])
             .current_dir(dir)
             .output()
             .context("Failed to execute git command")?;
@@ -543,12 +551,17 @@ mod tests {
             bail!("Not in a git repository");
         }
 
-        let path = String::from_utf8(output.stdout)
+        let git_common_dir = String::from_utf8(output.stdout)
             .context("Invalid UTF-8 in git output")?
             .trim()
             .to_string();
 
-        Ok(PathBuf::from(path))
+        let path = PathBuf::from(git_common_dir);
+        let repo_root = path
+            .parent()
+            .context("Failed to determine repository root from git common dir")?;
+
+        Ok(repo_root.to_path_buf())
     }
 
     #[test]
@@ -686,7 +699,8 @@ mod tests {
 
         // Create a worktree
         let worktree_path = temp_dir.path().parent().unwrap().join("test-worktree");
-        worktree_add_new_branch(&worktree_path, "test-branch").expect("Should create worktree");
+        worktree_add_new_branch(&worktree_path, "test-branch", "HEAD")
+            .expect("Should create worktree");
 
         // Verify worktree exists
         assert!(worktree_path.exists(), "Worktree directory should exist");
