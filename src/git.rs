@@ -153,6 +153,27 @@ pub fn set_upstream(worktree_path: &Path, branch: &str, upstream: &str) -> Resul
     Ok(())
 }
 
+/// Configure branch to push to a same-named remote branch.
+/// Used for new branches where the remote branch doesn't exist yet
+/// and `--set-upstream-to` cannot be used.
+pub fn configure_push_tracking(worktree_path: &Path, branch: &str) -> Result<()> {
+    let config_key = format!("branch.{}.merge", branch);
+    let merge_ref = format!("refs/heads/{}", branch);
+
+    let output = Command::new("git")
+        .args(["config", &config_key, &merge_ref])
+        .current_dir(worktree_path)
+        .output()
+        .context("Failed to configure branch push tracking")?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        bail!("Failed to configure branch push tracking: {}", stderr.trim());
+    }
+
+    Ok(())
+}
+
 /// Remove a worktree
 pub fn worktree_remove(path: &Path, force: bool, repo_path: &Path) -> Result<()> {
     let path_str = path.to_string_lossy();
@@ -755,6 +776,39 @@ mod tests {
             .output()
             .expect("Failed to list branches");
         assert!(output.stdout.is_empty(), "Branch should be deleted");
+    }
+
+    #[test]
+    fn test_configure_push_tracking() {
+        let _guard = CWD_MUTEX.lock().unwrap();
+        let temp_dir = create_temp_git_repo();
+        let repo_path = temp_dir.path();
+        std::env::set_current_dir(repo_path).expect("Failed to change directory");
+
+        // Create a worktree with a new branch based on HEAD
+        let worktree_path = temp_dir.path().parent().unwrap().join("tracking-worktree");
+        worktree_add_new_branch(&worktree_path, "feature/test-branch", "HEAD")
+            .expect("Should create worktree");
+
+        // Configure push tracking
+        configure_push_tracking(&worktree_path, "feature/test-branch")
+            .expect("Should configure push tracking");
+
+        // Verify the merge config is set correctly
+        let output = Command::new("git")
+            .args(["config", "branch.feature/test-branch.merge"])
+            .current_dir(&worktree_path)
+            .output()
+            .expect("Failed to read git config");
+        assert!(output.status.success());
+        let merge_ref = String::from_utf8(output.stdout)
+            .unwrap()
+            .trim()
+            .to_string();
+        assert_eq!(merge_ref, "refs/heads/feature/test-branch");
+
+        // Cleanup
+        worktree_remove(&worktree_path, false, repo_path).expect("Should remove worktree");
     }
 
     #[test]

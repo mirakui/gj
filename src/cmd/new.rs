@@ -61,6 +61,9 @@ pub fn run(branch_suffix: Option<String>, random_suffix: bool, output: OutputFor
     // Create the worktree
     git::worktree_add_new_branch(&worktree_path, &branch, &start_point)?;
 
+    // Configure the branch to push to origin/<branch> instead of origin/<default_branch>
+    git::configure_push_tracking(&worktree_path, &branch)?;
+
     // Save state
     let state = WorktreeState::new(worktree_path.clone(), git_root.clone(), branch.clone());
     state.save()?;
